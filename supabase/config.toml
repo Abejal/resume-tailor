@@ -1,0 +1,10 @@
+project_id = "clefstvmixwfbvfeqfkr"
+
+[functions.tailor]
+verify_jwt = false
+
+[functions.toyyibpay-create-bill]
+verify_jwt = false
+
+[functions.toyyibpay-callback]
+verify_jwt = false

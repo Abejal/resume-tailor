@@ -1,0 +1,44 @@
+{
+  "header": {
+    "credits_left_one": "{{count}} kredit baki",
+    "credits_left_other": "{{count}} kredit baki",
+    "buy_credits": "Beli kredit",
+    "sign_in": "Log masuk",
+    "sign_out": "Log keluar",
+    "billing": "Bil",
+    "history": "Sejarah"
+  },
+  "hero": {
+    "tagline": "Dikuasakan AI · Dioptimumkan ATS",
+    "title_line1": "Dapatkan lebih banyak temuduga,",
+    "title_line2": "ubah suai dalam beberapa saat.",
+    "subtitle": "Tampal resume anda dan deskripsi pekerjaan — terus dapatkan resume yang dioptimumkan ATS dan surat iringan peribadi.",
+    "feature_keywords": "Padanan kata kunci",
+    "feature_fast": "Bawah 30 saat",
+    "feature_private": "Peribadi & selamat"
+  },
+  "form": {
+    "your_details": "Maklumat anda",
+    "load_example": "Muat contoh",
+    "clear_all": "Padam semua",
+    "job_title": "Jawatan (pilihan)",
+    "company": "Syarikat (pilihan)",
+    "resume": "Resume anda",
+    "upload_resume": "Muat naik resume",
+    "jd": "Deskripsi pekerjaan",
+    "upload_jd": "Muat naik DP",
+    "preferences": "Resume jenis apa yang anda mahu? (pilihan)",
+    "preferences_hint": "Beritahu AI apa yang perlu diutamakan, nada yang anda mahu, panjang, dsb.",
+    "tailor_resume": "Ubah Suai Resume",
+    "generate_cover": "Jana Surat Iringan"
+  },
+  "errors": {
+    "required": "Sila masukkan resume dan deskripsi pekerjaan",
+    "no_credits": "Kredit anda habis — pilih pelan untuk teruskan."
+  },
+  "toasts": {
+    "resume_ready": "Resume siap!",
+    "cover_ready": "Surat iringan siap!",
+    "cleared": "Dipadam"
+  }
+}

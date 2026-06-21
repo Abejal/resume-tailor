@@ -1,0 +1,44 @@
+{
+  "header": {
+    "credits_left_one": "{{count}} credit left",
+    "credits_left_other": "{{count}} credits left",
+    "buy_credits": "Buy credits",
+    "sign_in": "Sign in",
+    "sign_out": "Sign out",
+    "billing": "Billing",
+    "history": "History"
+  },
+  "hero": {
+    "tagline": "AI-powered · ATS-optimized",
+    "title_line1": "Land more interviews,",
+    "title_line2": "tailor in seconds.",
+    "subtitle": "Paste your resume and a job description — get an ATS-optimized resume and a personalized cover letter, instantly.",
+    "feature_keywords": "Keyword-matched",
+    "feature_fast": "Under 30 seconds",
+    "feature_private": "Private & secure"
+  },
+  "form": {
+    "your_details": "Your details",
+    "load_example": "Load example",
+    "clear_all": "Clear all",
+    "job_title": "Job title (optional)",
+    "company": "Company (optional)",
+    "resume": "Your resume",
+    "upload_resume": "Upload resume",
+    "jd": "Job description",
+    "upload_jd": "Upload JD",
+    "preferences": "What kind of resume do you want? (optional)",
+    "preferences_hint": "Tell the AI what to prioritize, the tone you want, what to emphasize or downplay, length, etc.",
+    "tailor_resume": "Tailor My Resume",
+    "generate_cover": "Generate Cover Letter"
+  },
+  "errors": {
+    "required": "Please add both your resume and the job description",
+    "no_credits": "You're out of credits — pick a plan to keep tailoring."
+  },
+  "toasts": {
+    "resume_ready": "Resume tailored!",
+    "cover_ready": "Cover letter ready!",
+    "cleared": "Cleared"
+  }
+}
