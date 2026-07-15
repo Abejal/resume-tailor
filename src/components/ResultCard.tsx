@@ -2,7 +2,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { motion } from "framer-motion";
-import { Copy, Check, FileText, FileType2, LayoutTemplate, Loader2 } from "lucide-react";
+import { Copy, Check, FileText, FileType2, LayoutTemplate, Loader2, Eye } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 import type { TailoredResume, CoverLetter, Template } from "@/lib/resumeSchema";
@@ -10,6 +10,7 @@ import { resumeToPlainText, coverToPlainText } from "@/lib/resumeSchema";
 import { downloadResumePdf, downloadCoverPdf } from "@/lib/exports/pdfRenderer";
 import { downloadResumeDocx, downloadCoverDocx } from "@/lib/exports/docxRenderer";
 import { AtsDonut } from "@/components/AtsDonut";
+import { PdfPreviewDialog } from "@/components/PdfPreviewDialog";
 import { cn } from "@/lib/utils";
 
 type Props =
@@ -161,6 +162,7 @@ export function ResultCard(props: Props) {
   const [copied, setCopied] = useState(false);
   const [template, setTemplate] = useState<Template>("classic");
   const [downloading, setDownloading] = useState<"pdf" | "docx" | null>(null);
+  const [previewOpen, setPreviewOpen] = useState(false);
 
   const isResume = props.kind === "resume";
   const ats: { matched?: string[]; missing?: string[] } = props.data.ats ?? {};
@@ -216,6 +218,11 @@ export function ResultCard(props: Props) {
         <Button variant="ghost" size="sm" onClick={handleCopy} className="h-8 rounded-full px-3">
           {copied ? <Check className="h-3.5 w-3.5 mr-1.5 text-success" /> : <Copy className="h-3.5 w-3.5 mr-1.5" />}
           {copied ? "Copied" : "Copy"}
+        </Button>
+        <div className="h-4 w-px bg-border" />
+        <Button variant="ghost" size="sm" onClick={() => setPreviewOpen(true)} className="h-8 rounded-full px-3">
+          <Eye className="h-3.5 w-3.5 mr-1.5" />
+          Preview
         </Button>
         <div className="h-4 w-px bg-border" />
         <Button variant="ghost" size="sm" onClick={handleDocx} disabled={downloading !== null} className="h-8 rounded-full px-3">
@@ -281,6 +288,26 @@ export function ResultCard(props: Props) {
             : <CoverPreview c={props.data as CoverLetter} />}
         </div>
       </div>
+
+      {isResume ? (
+        <PdfPreviewDialog
+          kind="resume"
+          data={props.data as TailoredResume}
+          template={template}
+          filename={`${props.filenameBase}.pdf`}
+          open={previewOpen}
+          onOpenChange={setPreviewOpen}
+        />
+      ) : (
+        <PdfPreviewDialog
+          kind="cover"
+          data={props.data as CoverLetter}
+          template={template}
+          filename={`${props.filenameBase}.pdf`}
+          open={previewOpen}
+          onOpenChange={setPreviewOpen}
+        />
+      )}
     </Card>
   );
 }

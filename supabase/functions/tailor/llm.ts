@@ -38,7 +38,7 @@ async function callGemini(messages: Msg[], opts: { json: boolean; temperature?: 
   };
   if (system) body.systemInstruction = { parts: [{ text: system }] };
 
-  const model = "gemini-2.5-flash";
+  const model = Deno.env.get("GEMINI_MODEL") ?? "gemini-2.0-flash";
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${GOOGLE_KEY}`;
 
   const res = await fetch(url, {
@@ -49,6 +49,7 @@ async function callGemini(messages: Msg[], opts: { json: boolean; temperature?: 
 
   if (!res.ok) {
     const t = await res.text();
+    console.error(`gemini ${res.status} (model=${model}): ${t.slice(0, 500)}`);
     if (res.status === 429) throw new LLMError("rate_limit", "gemini", t);
     if (res.status >= 500) throw new LLMError("server", "gemini", t);
     if (res.status === 400) throw new LLMError("bad_request", "gemini", t);
@@ -129,8 +130,8 @@ export async function callLLM(
       return await p.fn();
     } catch (e) {
       lastErr = e;
-      if (e instanceof LLMError && (e.code === "rate_limit" || e.code === "server" || e.code === "auth")) {
-        console.warn(`LLM ${p.name} ${e.code}: trying fallback`);
+      if (e instanceof LLMError && (e.code === "rate_limit" || e.code === "server" || e.code === "auth" || e.code === "bad_request")) {
+        console.warn(`LLM ${p.name} ${e.code}: ${e.message.slice(0, 300)} -- trying fallback`);
         continue;
       }
       throw e;
