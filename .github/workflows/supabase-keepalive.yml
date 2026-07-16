@@ -1,0 +1,22 @@
+name: Supabase Keep-Alive
+
+# Free-tier Supabase projects auto-pause after ~7 days with no activity.
+# This pings the project every 3 days so it never goes idle long enough to pause.
+# The URL and key below are the same public/client-safe values already
+# embedded in the deployed frontend bundle — safe to commit.
+
+on:
+  schedule:
+    - cron: "0 4 */3 * *" # every 3 days at 04:00 UTC
+  workflow_dispatch: {}
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping Supabase Auth endpoint
+        run: |
+          curl -sf "https://ctynwrjbwhiodgscyxwp.supabase.co/auth/v1/health" \
+            -H "apikey: sb_publishable_5F8sMJEHVdpWE9sRfOSnQQ_yvJU-c49" \
+            -o /dev/null
+          echo "Pinged Supabase at $(date -u)"
