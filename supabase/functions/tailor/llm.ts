@@ -1,5 +1,9 @@
 // LLM router: Gemini 2.5 Flash (primary) -> Groq Llama 3.3 70B (fallback).
 // Both providers return { text, model, usage }.
+//
+// NOTE: use gemini-2.5-flash, not 2.0-flash — on the current AI Studio key
+// gemini-2.0-flash has NO free-tier quota (429 "limit: 0"), while 2.5-flash
+// does. Override with the GEMINI_MODEL env var if that ever changes.
 
 export type Msg = { role: "system" | "user" | "assistant"; content: string };
 
@@ -38,7 +42,7 @@ async function callGemini(messages: Msg[], opts: { json: boolean; temperature?: 
   };
   if (system) body.systemInstruction = { parts: [{ text: system }] };
 
-  const model = Deno.env.get("GEMINI_MODEL") ?? "gemini-2.0-flash";
+  const model = Deno.env.get("GEMINI_MODEL") ?? "gemini-2.5-flash";
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${GOOGLE_KEY}`;
 
   const res = await fetch(url, {
