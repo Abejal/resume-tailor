@@ -81,6 +81,9 @@ export async function createBill(input: CreateBillInput): Promise<{ billCode: st
   return { billCode: code, url: `${BASE}/${code}` };
 }
 
+// NOTE: ToyyibPay's getBillTransactions response uses lowercase-`p`
+// `billpayment*` keys. An earlier `billPaymentInvoiceNo` (capital P) typo read
+// undefined at runtime and defeated webhook idempotency — keep these exact.
 export type BillTxn = {
   billName: string;
   billDescription: string;
@@ -88,12 +91,12 @@ export type BillTxn = {
   billEmail: string;
   billPhone: string;
   billStatus: string;             // "1" = paid, "2" = pending, "3" = failed
-  billPaymentStatus: string;      // "1" = success
+  billpaymentStatus: string;      // "1" = success
   billpaymentAmount: string;      // ringgit (string, e.g. "29.00")
   billpaymentDate: string;
   billExternalReferenceNo: string;
   billPermalink: string;
-  billPaymentInvoiceNo: string;
+  billpaymentInvoiceNo: string;
 };
 
 export async function getBillTransactions(billCode: string): Promise<BillTxn[]> {

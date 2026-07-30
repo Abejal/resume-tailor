@@ -63,6 +63,13 @@ Deno.serve(async (req) => {
     if (resume.length > 40_000 || jobDescription.length > 40_000) {
       return json(req, { error: "Input too large" }, 413);
     }
+    // Cap the smaller free-text fields too — they're interpolated into the
+    // prompt, so they're an injection/cost surface just like the big ones.
+    if ((body.preferences?.length ?? 0) > 5_000 ||
+        (body.jobTitle?.length ?? 0) > 300 ||
+        (body.company?.length ?? 0) > 300) {
+      return json(req, { error: "Input too large" }, 413);
+    }
 
     const authHeader = req.headers.get("authorization");
     const fp = req.headers.get("x-anon-fp");
@@ -79,7 +86,11 @@ Deno.serve(async (req) => {
       }
       consumed = { kind: "user", userId };
     } else if (fp && /^[a-f0-9]{32,128}$/i.test(fp)) {
-      const ipHash = await sha256(req.headers.get("x-forwarded-for") ?? "");
+      // Hash only the left-most (original client) IP, not the whole forwarded
+      // chain — the chain is client-appendable and would let an attacker vary
+      // the hash to dodge the per-IP throttle.
+      const clientIp = (req.headers.get("x-forwarded-for") ?? "").split(",")[0].trim();
+      const ipHash = await sha256(clientIp);
       const { error } = await sb.rpc("consume_credit_anon", { fp, ip_h: ipHash });
       if (error) {
         if (error.message?.includes("insufficient_credit"))
@@ -121,7 +132,7 @@ Deno.serve(async (req) => {
       payload = parseJson(result.text);
     } catch (e) {
       console.error(JSON.stringify({ at: "parse_json", err: String(e), raw: result.text.slice(0, 500) }));
-      if (consumed?.kind === "user") await userClient(authHeader).rpc("refund_credit_signed_in");
+      if (consumed?.kind === "user") await sb.rpc("refund_credit_by_id", { p_user_id: consumed.userId });
       else if (consumed?.kind === "anon") await sb.rpc("refund_credit_anon", { fp: consumed.fp });
       return json(req, { error: "ai_format_error" }, 502);
     }
@@ -151,10 +162,12 @@ Deno.serve(async (req) => {
   } catch (e) {
     console.error(JSON.stringify({ at: "tailor", err: e instanceof Error ? e.message : String(e) }));
     if (consumed?.kind === "user") {
-      try { await userClient(req.headers.get("authorization")).rpc("refund_credit_signed_in"); } catch (_) {}
+      try { await sb.rpc("refund_credit_by_id", { p_user_id: consumed.userId }); } catch (_) {}
     } else if (consumed?.kind === "anon") {
       try { await sb.rpc("refund_credit_anon", { fp: consumed.fp }); } catch (_) {}
     }
-    return json(req, { error: e instanceof Error ? e.message : "unknown_error" }, 500);
+    // Log the real cause server-side; return a generic code so we never leak
+    // raw provider error bodies (model names, org ids, keys) to the client.
+    return json(req, { error: "generation_failed" }, 500);
   }
 });

@@ -12,18 +12,15 @@ Deno.serve(async (req) => {
 
   const ct = req.headers.get("content-type") ?? "";
   let billCode = "";
-  let refNo = "";
   let statusFromBody = "";
 
   if (ct.includes("application/json")) {
     const body = await req.json().catch(() => ({}));
-    billCode      = String(body.billcode ?? body.billCode ?? "");
-    refNo         = String(body.refno ?? "");
+    billCode       = String(body.billcode ?? body.billCode ?? "");
     statusFromBody = String(body.status ?? "");
   } else {
     const f = await req.formData();
-    billCode      = String(f.get("billcode") ?? f.get("billCode") ?? "");
-    refNo         = String(f.get("refno") ?? "");
+    billCode       = String(f.get("billcode") ?? f.get("billCode") ?? "");
     statusFromBody = String(f.get("status") ?? "");
   }
 
@@ -42,18 +39,14 @@ Deno.serve(async (req) => {
   const paid = txns.find(t => t.billpaymentStatus === "1");
   if (!paid) return new Response("ok (no paid txn)", { status: 200 });
 
-  const eventId = `${billCode}:${paid.billPaymentInvoiceNo || refNo}`;
-
-  // Idempotency.
-  const { error: insErr } = await sb
-    .from("webhook_events")
-    .insert({ event_id: eventId, source: "toyyibpay", payload: { billCode, ...paid } });
-
-  if (insErr) {
-    if ((insErr as any).code === "23505") return new Response("ok (dup)", { status: 200 });
-    console.error("webhook insert err:", insErr);
-    return new Response("db error", { status: 500 });
+  // Idempotency key comes ONLY from server-verified data (never the request
+  // body). The invoice number is the unique per-payment id from ToyyibPay.
+  const invoiceNo = paid.billpaymentInvoiceNo;
+  if (!invoiceNo) {
+    console.error("webhook missing verified invoice no", JSON.stringify(paid).slice(0, 300));
+    return new Response("missing invoice", { status: 500 });
   }
+  const eventId = `${billCode}:${invoiceNo}`;
 
   let ref: { user_id?: string; kind?: "topup" | "monthly" | "annual"; credits?: number; plan?: "monthly" | "annual" | null } = {};
   try { ref = JSON.parse(paid.billExternalReferenceNo); } catch (_) {}
@@ -63,56 +56,28 @@ Deno.serve(async (req) => {
     return new Response("missing reference", { status: 200 });
   }
 
+  const isTopup = ref.kind === "topup";
+  const plan = ref.plan === "annual" ? "annual" : "monthly";
   const credits = ref.credits ?? 0;
   const amountCents = Math.round(parseFloat(paid.billpaymentAmount || "0") * 100);
 
-  try {
-    // Top-up: just grant credits.
-    if (ref.kind === "topup") {
-      await sb.rpc("grant_credits", { p_user_id: userId, p_amount: credits, p_monthly_quota: null });
-      await sb.from("payments").insert({
-        user_id: userId,
-        chip_purchase_id: eventId,
-        amount: amountCents, currency: "myr", status: "paid",
-        kind: "topup", credits_granted: credits,
-      });
-    } else {
-      // Subscription pack: grant credits + create/extend subscriptions row.
-      const plan = ref.plan === "annual" ? "annual" : "monthly";
-      const days = plan === "annual" ? 365 : 30;
-      const periodEnd = new Date(Date.now() + days * 24 * 3600 * 1000).toISOString();
-      const monthlyQuota = plan === "annual" ? 50 : 50;
+  // Single atomic RPC: records the idempotency marker AND grants credits /
+  // subscription / referral in one transaction. A duplicate event is a no-op;
+  // a transient failure rolls back the marker too (so credits are never lost).
+  const { data: outcome, error: fErr } = await sb.rpc("fulfill_payment", {
+    p_event_id: eventId,
+    p_user_id: userId,
+    p_kind: isTopup ? "topup" : "subscription",
+    p_credits: credits,
+    p_plan: isTopup ? null : plan,
+    p_monthly_quota: isTopup ? null : 50,
+    p_amount_cents: amountCents,
+  });
 
-      await sb.rpc("grant_credits", { p_user_id: userId, p_amount: credits, p_monthly_quota: monthlyQuota });
-
-      const { data: existing } = await sb.from("subscriptions")
-        .select("id").eq("user_id", userId).maybeSingle();
-      if (existing) {
-        await sb.from("subscriptions").update({
-          plan, status: "active",
-          current_period_end: periodEnd,
-          cancel_at_period_end: false,
-          updated_at: new Date().toISOString(),
-        }).eq("id", existing.id);
-      } else {
-        await sb.from("subscriptions").insert({
-          user_id: userId, plan, status: "active",
-          current_period_end: periodEnd,
-        });
-      }
-
-      await sb.from("payments").insert({
-        user_id: userId, chip_purchase_id: eventId,
-        amount: amountCents, currency: "myr", status: "paid",
-        kind: "subscription", credits_granted: credits,
-      });
-
-      await sb.rpc("redeem_referral_on_first_purchase", { p_user_id: userId });
-    }
-
-    return new Response("ok", { status: 200 });
-  } catch (e) {
-    console.error("webhook handler err:", e);
-    return new Response("err", { status: 500 });
+  if (fErr) {
+    console.error("fulfill_payment err:", fErr);
+    return new Response("fulfillment failed", { status: 500 });
   }
+  if (outcome === "duplicate") return new Response("ok (dup)", { status: 200 });
+  return new Response("ok", { status: 200 });
 });

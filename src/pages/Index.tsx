@@ -137,15 +137,24 @@ const Index = () => {
         headers: { "x-anon-fp": fp },
       });
 
-      if (error) throw error;
-      if (data?.error) {
-        if (data.error === "insufficient_credit") {
-          setPaywallOpen(true);
-          throw new Error(t("errors.no_credits"));
-        }
-        if (data.error === "auth_required") throw new Error("Please sign in");
-        throw new Error(data.error);
+      // The edge function signals business errors with non-2xx status codes, so
+      // supabase-js surfaces them via `error` (a FunctionsHttpError whose JSON
+      // body lives on `error.context`), not `data`. Read the real error code
+      // from there — otherwise the paywall never opens on server exhaustion and
+      // the user just sees "Edge Function returned a non-2xx status code".
+      const errCode = (data?.error as string | undefined)
+        ?? (error ? await (error as any)?.context?.json?.().then((b: any) => b?.error).catch(() => undefined) : undefined);
+
+      if (errCode === "insufficient_credit") {
+        await refresh();
+        setPaywallOpen(true);
+        throw new Error(t("errors.no_credits"));
       }
+      if (errCode === "auth_required") throw new Error("Please sign in");
+      if (errCode === "generation_failed" || errCode === "ai_format_error")
+        throw new Error("Generation failed — please try again in a moment.");
+      if (errCode) throw new Error(errCode);
+      if (error) throw error;
 
       if (mode === "resume") {
         setTailoredResume(data.payload as TailoredResume);
