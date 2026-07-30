@@ -1,9 +1,18 @@
-// LLM router: Gemini 2.5 Flash (primary) -> Groq Llama 3.3 70B (fallback).
-// Both providers return { text, model, usage }.
+// LLM router with multi-key + multi-provider fallback.
 //
-// NOTE: use gemini-2.5-flash, not 2.0-flash — on the current AI Studio key
-// gemini-2.0-flash has NO free-tier quota (429 "limit: 0"), while 2.5-flash
-// does. Override with the GEMINI_MODEL env var if that ever changes.
+// Attempt order (each only added if its key is present in the env):
+//   Gemini key 1..3  ->  OpenRouter  ->  Groq
+// Each key/provider is its own attempt; on a recoverable error we roll to the
+// next. Multiple Gemini keys each carry their OWN free-tier quota, so one
+// hitting "limit: 0" / 429 no longer takes the whole app down.
+//
+// Secrets (all optional except the first — set only what you have):
+//   GOOGLE_AI_API_KEY        primary Gemini key
+//   GOOGLE_AI_API_KEY_2/_3   extra Gemini keys (different Google accounts)
+//   GEMINI_MODEL             default "gemini-2.5-flash" (2.0-flash has no free quota on some keys)
+//   OPENROUTER_API_KEY       OpenRouter key (one key, many models)
+//   OPENROUTER_MODEL         default "google/gemini-2.0-flash-exp:free"
+//   GROQ_API_KEY             Groq key (final fallback)
 
 export type Msg = { role: "system" | "user" | "assistant"; content: string };
 
@@ -13,9 +22,6 @@ export type LLMResult = {
   usage?: { input?: number; output?: number };
 };
 
-const GOOGLE_KEY = Deno.env.get("GOOGLE_AI_API_KEY");
-const GROQ_KEY   = Deno.env.get("GROQ_API_KEY");
-
 class LLMError extends Error {
   constructor(public code: "rate_limit" | "server" | "auth" | "bad_request" | "unknown",
               public provider: string, message: string) {
@@ -23,10 +29,18 @@ class LLMError extends Error {
   }
 }
 
-// ----- Gemini ------------------------------------------------------------
-async function callGemini(messages: Msg[], opts: { json: boolean; temperature?: number }): Promise<LLMResult> {
-  if (!GOOGLE_KEY) throw new LLMError("auth", "gemini", "GOOGLE_AI_API_KEY not set");
+type Opts = { json: boolean; temperature?: number };
 
+function mapStatus(status: number): LLMError["code"] {
+  if (status === 429) return "rate_limit";
+  if (status >= 500) return "server";
+  if (status === 400) return "bad_request";
+  if (status === 401 || status === 403) return "auth";
+  return "unknown";
+}
+
+// ----- Gemini ------------------------------------------------------------
+async function callGemini(messages: Msg[], opts: Opts, key: string, model: string): Promise<LLMResult> {
   const system = messages.find(m => m.role === "system")?.content;
   const contents = messages
     .filter(m => m.role !== "system")
@@ -42,9 +56,7 @@ async function callGemini(messages: Msg[], opts: { json: boolean; temperature?: 
   };
   if (system) body.systemInstruction = { parts: [{ text: system }] };
 
-  const model = Deno.env.get("GEMINI_MODEL") ?? "gemini-2.5-flash";
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${GOOGLE_KEY}`;
-
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${key}`;
   const res = await fetch(url, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -53,12 +65,8 @@ async function callGemini(messages: Msg[], opts: { json: boolean; temperature?: 
 
   if (!res.ok) {
     const t = await res.text();
-    console.error(`gemini ${res.status} (model=${model}): ${t.slice(0, 500)}`);
-    if (res.status === 429) throw new LLMError("rate_limit", "gemini", t);
-    if (res.status >= 500) throw new LLMError("server", "gemini", t);
-    if (res.status === 400) throw new LLMError("bad_request", "gemini", t);
-    if (res.status === 401 || res.status === 403) throw new LLMError("auth", "gemini", t);
-    throw new LLMError("unknown", "gemini", t);
+    console.error(`gemini ${res.status} (model=${model}): ${t.slice(0, 300)}`);
+    throw new LLMError(mapStatus(res.status), "gemini", t);
   }
 
   const data = await res.json();
@@ -75,45 +83,95 @@ async function callGemini(messages: Msg[], opts: { json: boolean; temperature?: 
   };
 }
 
-// ----- Groq --------------------------------------------------------------
-async function callGroq(messages: Msg[], opts: { json: boolean; temperature?: number }): Promise<LLMResult> {
-  if (!GROQ_KEY) throw new LLMError("auth", "groq", "GROQ_API_KEY not set");
-
-  const model = "llama-3.3-70b-versatile";
+// ----- OpenAI-compatible (OpenRouter / Groq) -----------------------------
+async function callOpenAICompatible(
+  messages: Msg[], opts: Opts, cfg: { url: string; key: string; model: string; provider: string; extraHeaders?: Record<string, string> },
+): Promise<LLMResult> {
   const body: Record<string, unknown> = {
-    model,
+    model: cfg.model,
     messages,
     temperature: opts.temperature ?? 0.4,
     max_tokens: 8192,
     ...(opts.json ? { response_format: { type: "json_object" } } : {}),
   };
 
-  const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+  const res = await fetch(cfg.url, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      "Authorization": `Bearer ${GROQ_KEY}`,
+      "Authorization": `Bearer ${cfg.key}`,
+      ...(cfg.extraHeaders ?? {}),
     },
     body: JSON.stringify(body),
   });
 
   if (!res.ok) {
     const t = await res.text();
-    if (res.status === 429) throw new LLMError("rate_limit", "groq", t);
-    if (res.status >= 500) throw new LLMError("server", "groq", t);
-    if (res.status === 401 || res.status === 403) throw new LLMError("auth", "groq", t);
-    throw new LLMError("unknown", "groq", t);
+    console.error(`${cfg.provider} ${res.status} (model=${cfg.model}): ${t.slice(0, 300)}`);
+    throw new LLMError(mapStatus(res.status), cfg.provider, t);
   }
 
   const data = await res.json();
   const text = data?.choices?.[0]?.message?.content ?? "";
-  if (!text) throw new LLMError("server", "groq", "empty response");
+  if (!text) throw new LLMError("server", cfg.provider, "empty response");
 
   return {
     text,
-    model,
+    model: cfg.model,
     usage: { input: data?.usage?.prompt_tokens, output: data?.usage?.completion_tokens },
   };
+}
+
+// ----- Provider chain ----------------------------------------------------
+type Provider = { name: string; family: "gemini" | "openrouter" | "groq"; fn: () => Promise<LLMResult> };
+
+function buildProviders(messages: Msg[], o: Opts): Provider[] {
+  const providers: Provider[] = [];
+
+  const geminiModel = Deno.env.get("GEMINI_MODEL") ?? "gemini-2.5-flash";
+  const geminiKeys = [
+    Deno.env.get("GOOGLE_AI_API_KEY"),
+    Deno.env.get("GOOGLE_AI_API_KEY_2"),
+    Deno.env.get("GOOGLE_AI_API_KEY_3"),
+  ].filter((k): k is string => !!k);
+  geminiKeys.forEach((k, i) => {
+    providers.push({
+      name: `gemini#${i + 1}`,
+      family: "gemini",
+      fn: () => callGemini(messages, o, k, geminiModel),
+    });
+  });
+
+  const orKey = Deno.env.get("OPENROUTER_API_KEY");
+  if (orKey) {
+    const orModel = Deno.env.get("OPENROUTER_MODEL") ?? "google/gemini-2.0-flash-exp:free";
+    providers.push({
+      name: "openrouter",
+      family: "openrouter",
+      fn: () => callOpenAICompatible(messages, o, {
+        url: "https://openrouter.ai/api/v1/chat/completions",
+        key: orKey, model: orModel, provider: "openrouter",
+        extraHeaders: {
+          "HTTP-Referer": Deno.env.get("APP_URL") ?? "https://resume-tailor-sepia.vercel.app",
+          "X-Title": "Resume Tailor",
+        },
+      }),
+    });
+  }
+
+  const groqKey = Deno.env.get("GROQ_API_KEY");
+  if (groqKey) {
+    providers.push({
+      name: "groq",
+      family: "groq",
+      fn: () => callOpenAICompatible(messages, o, {
+        url: "https://api.groq.com/openai/v1/chat/completions",
+        key: groqKey, model: "llama-3.3-70b-versatile", provider: "groq",
+      }),
+    });
+  }
+
+  return providers;
 }
 
 // ----- Public API --------------------------------------------------------
@@ -121,27 +179,28 @@ export async function callLLM(
   messages: Msg[],
   opts: { json?: boolean; temperature?: number; noFallback?: boolean } = {},
 ): Promise<LLMResult> {
-  const o = { json: opts.json ?? false, temperature: opts.temperature };
+  const o: Opts = { json: opts.json ?? false, temperature: opts.temperature };
 
-  const providers: Array<{ name: string; fn: () => Promise<LLMResult> }> = [
-    { name: "gemini", fn: () => callGemini(messages, o) },
-    { name: "groq",   fn: () => callGroq(messages, o) },
-  ];
+  let providers = buildProviders(messages, o);
+  if (providers.length === 0) throw new Error("No LLM providers configured");
 
-  // noFallback: try only the primary provider, never spend Groq's shared,
-  // limited quota. Used by low-priority/best-effort callers (e.g. the
-  // critique pass) so they can never contend with a user-facing call for
-  // the same scarce fallback budget.
-  const active = opts.noFallback ? providers.slice(0, 1) : providers;
+  // noFallback (best-effort callers like the critique pass): only rotate among
+  // Gemini keys — each has free quota — never spend the shared OpenRouter/Groq
+  // budget that user-facing generations depend on.
+  if (opts.noFallback) {
+    const geminiOnly = providers.filter(p => p.family === "gemini");
+    providers = geminiOnly.length ? geminiOnly : providers.slice(0, 1);
+  }
 
   let lastErr: unknown;
-  for (const p of active) {
+  for (const p of providers) {
     try {
       return await p.fn();
     } catch (e) {
       lastErr = e;
-      if (!opts.noFallback && e instanceof LLMError && (e.code === "rate_limit" || e.code === "server" || e.code === "auth" || e.code === "bad_request")) {
-        console.warn(`LLM ${p.name} ${e.code}: ${e.message.slice(0, 300)} -- trying fallback`);
+      if (e instanceof LLMError &&
+          (e.code === "rate_limit" || e.code === "server" || e.code === "auth" || e.code === "bad_request")) {
+        console.warn(`LLM ${p.name} ${e.code}: ${e.message.slice(0, 200)} -- trying next`);
         continue;
       }
       throw e;
