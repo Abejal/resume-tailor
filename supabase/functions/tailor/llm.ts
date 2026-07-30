@@ -115,7 +115,7 @@ async function callGroq(messages: Msg[], opts: { json: boolean; temperature?: nu
 // ----- Public API --------------------------------------------------------
 export async function callLLM(
   messages: Msg[],
-  opts: { json?: boolean; temperature?: number } = {},
+  opts: { json?: boolean; temperature?: number; noFallback?: boolean } = {},
 ): Promise<LLMResult> {
   const o = { json: opts.json ?? false, temperature: opts.temperature };
 
@@ -124,13 +124,19 @@ export async function callLLM(
     { name: "groq",   fn: () => callGroq(messages, o) },
   ];
 
+  // noFallback: try only the primary provider, never spend Groq's shared,
+  // limited quota. Used by low-priority/best-effort callers (e.g. the
+  // critique pass) so they can never contend with a user-facing call for
+  // the same scarce fallback budget.
+  const active = opts.noFallback ? providers.slice(0, 1) : providers;
+
   let lastErr: unknown;
-  for (const p of providers) {
+  for (const p of active) {
     try {
       return await p.fn();
     } catch (e) {
       lastErr = e;
-      if (e instanceof LLMError && (e.code === "rate_limit" || e.code === "server" || e.code === "auth" || e.code === "bad_request")) {
+      if (!opts.noFallback && e instanceof LLMError && (e.code === "rate_limit" || e.code === "server" || e.code === "auth" || e.code === "bad_request")) {
         console.warn(`LLM ${p.name} ${e.code}: ${e.message.slice(0, 300)} -- trying fallback`);
         continue;
       }

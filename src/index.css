@@ -36,6 +36,7 @@
 
     --warning: 32 95% 50%;
     --warning-foreground: 32 95% 12%;
+    --warning-soft: 32 95% 95%;
 
     --border: 220 16% 90%;
     --input: 220 16% 90%;
@@ -88,6 +89,7 @@
     --destructive-foreground: 220 20% 96%;
     --warning: 32 90% 60%;
     --warning-foreground: 32 90% 10%;
+    --warning-soft: 32 40% 18%;
     --border: 230 20% 18%;
     --input: 230 20% 18%;
     --ring: 238 80% 68%;

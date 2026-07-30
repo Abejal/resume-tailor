@@ -4,7 +4,7 @@
 import { preflight, json } from "../_shared/cors.ts";
 import { getUserIdFromJwt, serviceClient, userClient } from "../_shared/supabase.ts";
 import { callLLM } from "./llm.ts";
-import { analyzePrompt, resumePrompt, coverPrompt, TailorInput } from "./prompts.ts";
+import { analyzePrompt, resumePrompt, coverPrompt, critiquePrompt, TailorInput } from "./prompts.ts";
 
 async function sha256(s: string): Promise<string> {
   const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(s));
@@ -21,6 +21,25 @@ function parseJson(text: string): any {
     if (start >= 0 && end > start) return JSON.parse(cleaned.slice(start, end + 1));
     throw new Error("Model did not return valid JSON");
   }
+}
+
+// Deterministic weighted average — never trust the LLM's own arithmetic for the headline score.
+const CRITIQUE_WEIGHTS: Record<string, number> = {
+  keyword_match: 0.25,
+  role_fit: 0.20,
+  impact_quantification: 0.20,
+  seniority_alignment: 0.15,
+  clarity_language: 0.10,
+  structure_completeness: 0.10,
+};
+function computeOverallScore(categories: { key: string; score: number }[]): number {
+  let sum = 0, weightSum = 0;
+  for (const c of categories ?? []) {
+    const w = CRITIQUE_WEIGHTS[c.key] ?? 0;
+    sum += Math.max(0, Math.min(100, c.score ?? 0)) * w;
+    weightSum += w;
+  }
+  return weightSum > 0 ? Math.round(sum / weightSum) : 0;
 }
 
 Deno.serve(async (req) => {
@@ -79,7 +98,23 @@ Deno.serve(async (req) => {
       ? resumePrompt(body, analysis.text)
       : coverPrompt(body, analysis.text);
 
-    const result = await callLLM(writeMessages, { json: true, temperature: 0.45 });
+    // Critique runs concurrently with the write pass — it only depends on the
+    // Pass-1 analysis + original resume, same as the write pass. Must never
+    // fail the primary request: any error or bad JSON degrades to `null`.
+    const critiqueCall = mode === "resume"
+      ? callLLM(critiquePrompt(body, analysis.text), { json: true, temperature: 0.3, noFallback: true })
+          .then(r => { try { return parseJson(r.text); } catch { return null; } })
+          .catch(() => null)
+      : Promise.resolve(null);
+
+    const [result, critiqueRaw] = await Promise.all([
+      callLLM(writeMessages, { json: true, temperature: 0.45 }),
+      critiqueCall,
+    ]);
+
+    const critique = critiqueRaw
+      ? { ...critiqueRaw, overall_score: computeOverallScore(critiqueRaw.categories) }
+      : null;
 
     let payload: any;
     try {
@@ -101,11 +136,13 @@ Deno.serve(async (req) => {
         jd_hash: jdHash,
         payload,
         ats_score: payload?.ats?.score ?? null,
+        critique,
       });
     }
 
     return json(req, {
       payload,
+      critique,
       mode,
       model: result.model,
       latency_ms: Date.now() - startedAt,

@@ -193,3 +193,61 @@ ${input.resume}${langInstr}`,
     },
   ];
 }
+
+// ----- Pass (parallel): CRITIQUE -----------------------------------------
+// Rates the ORIGINAL, as-submitted resume against the JD across 6 fixed
+// categories. Runs concurrently with resumePrompt (both depend only on the
+// Pass-1 analysis + original resume), never on the tailored output.
+const CRITIQUE_SYSTEM = `You are a brutally honest, senior technical recruiter and resume coach. Using the candidate's ORIGINAL (as-submitted) resume, the job description, and a PRE-COMPUTED ANALYSIS, critique how well the ORIGINAL resume — before any rewriting — matches this specific job. Be specific and evidence-based: every "why" bullet must reference actual content from the resume. Never invent facts not present in the resume or JD. Be constructive but honest — a low score with a clear reason is more useful than a generous one.
+
+Score each of these 6 categories from 0-100 (0 = no evidence/major gap, 100 = fully meets JD expectations):
+1. keyword_match — overlap between the JD's required tools/skills/terms (tier1+tier2 from the analysis) and what's explicitly present in the resume.
+2. role_fit — beyond keyword overlap, would this candidate's actual accomplishments plausibly succeed in THIS role's core responsibilities?
+3. impact_quantification — how much of the experience section shows measurable outcomes (numbers, %, $, scale, time saved) vs vague unquantified duty statements.
+4. seniority_alignment — does the candidate's title history, scope, and years of experience match the seniority level this JD implies?
+5. clarity_language — strong action verbs, concise phrasing, no filler ("responsible for", "team player", "helped with"), no passive-voice overuse.
+6. structure_completeness — presence and ordering of standard sections (summary, skills, experience, education), consistent chronology, complete contact info, appropriate length for seniority level.
+
+Return JSON in EXACTLY this shape (no extra keys, no markdown, no prose outside JSON):
+{
+  "categories": [
+    { "key": "keyword_match", "label": "Keyword & Skills Match", "score": int, "verdict": string, "why": [string], "fixes": [string] },
+    { "key": "role_fit", "label": "Achievements Relevance & Role Fit", "score": int, "verdict": string, "why": [string], "fixes": [string] },
+    { "key": "impact_quantification", "label": "Impact & Quantification", "score": int, "verdict": string, "why": [string], "fixes": [string] },
+    { "key": "seniority_alignment", "label": "Seniority & Title Alignment", "score": int, "verdict": string, "why": [string], "fixes": [string] },
+    { "key": "clarity_language", "label": "Clarity & Language", "score": int, "verdict": string, "why": [string], "fixes": [string] },
+    { "key": "structure_completeness", "label": "Structure & Completeness", "score": int, "verdict": string, "why": [string], "fixes": [string] }
+  ],
+  "overall_verdict": string,
+  "top_strengths": [string],
+  "top_risks": [string]
+}
+
+Each "why" array: 2-4 bullets, each grounded in specific resume/JD content. Each "fixes" array: 2-4 concrete, rewrite-ready suggestions (not generic advice like "add more detail" — say exactly what to add, e.g. "Quantify the 'led migration' bullet with team size or downtime reduced").
+
+No markdown. No prose outside the JSON. No code fences.`;
+
+export function critiquePrompt(input: TailorInput, analysisJson: string) {
+  const langInstr =
+    input.language === "ms"
+      ? `\n\nOUTPUT LANGUAGE: ${langName(input.language)}. Translate prose (verdicts, why, fixes) to Bahasa Malaysia. Keep proper nouns, technology names, and JD keywords in their original form.`
+      : `\n\nOUTPUT LANGUAGE: English.`;
+
+  return [
+    { role: "system" as const, content: CRITIQUE_SYSTEM },
+    {
+      role: "user" as const,
+      content: `PRE-COMPUTED ANALYSIS:
+${analysisJson}
+
+JOB TITLE: ${input.jobTitle || "N/A"}
+COMPANY: ${input.company || "N/A"}
+
+JOB DESCRIPTION:
+${input.jobDescription}
+
+CANDIDATE RESUME (critique as submitted, do not evaluate any rewrite):
+${input.resume}${langInstr}`,
+    },
+  ];
+}

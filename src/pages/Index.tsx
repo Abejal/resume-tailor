@@ -19,6 +19,7 @@ import {
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { ResultCard } from "@/components/ResultCard";
+import { CritiqueBreakdown } from "@/components/CritiqueBreakdown";
 import { FileUploadButton } from "@/components/FileUploadButton";
 import { Paywall } from "@/components/Paywall";
 import { LocaleToggle } from "@/components/LocaleToggle";
@@ -31,6 +32,7 @@ import { getFingerprint } from "@/lib/fingerprint";
 import { cn } from "@/lib/utils";
 import i18n from "@/lib/i18n";
 import type { TailoredResume, CoverLetter } from "@/lib/resumeSchema";
+import type { CritiqueResult } from "@/lib/critiqueSchema";
 
 const SAMPLE_RESUME = `John Doe
 Software Engineer | john@example.com | linkedin.com/in/johndoe
@@ -102,6 +104,7 @@ const Index = () => {
   const [preferences, setPreferences] = useState("");
   const [tailoredResume, setTailoredResume] = useState<TailoredResume | null>(null);
   const [coverLetter, setCoverLetter] = useState<CoverLetter | null>(null);
+  const [critique, setCritique] = useState<CritiqueResult | null>(null);
   const [loadingResume, setLoadingResume] = useState(false);
   const [loadingCover, setLoadingCover] = useState(false);
   const [paywallOpen, setPaywallOpen] = useState(false);
@@ -144,8 +147,12 @@ const Index = () => {
         throw new Error(data.error);
       }
 
-      if (mode === "resume") setTailoredResume(data.payload as TailoredResume);
-      else setCoverLetter(data.payload as CoverLetter);
+      if (mode === "resume") {
+        setTailoredResume(data.payload as TailoredResume);
+        setCritique((data.critique as CritiqueResult) ?? null);
+      } else {
+        setCoverLetter(data.payload as CoverLetter);
+      }
 
       if (user) await refresh();
       else decrementOptimistic();
@@ -168,6 +175,7 @@ const Index = () => {
   const clearAll = () => {
     setResume(""); setJobDescription(""); setJobTitle(""); setCompany("");
     setPreferences(""); setTailoredResume(null); setCoverLetter(null);
+    setCritique(null);
     toast.success(t("toasts.cleared"));
   };
 
@@ -357,6 +365,15 @@ const Index = () => {
             {coverLetter && (
               <ResultCard kind="cover" data={coverLetter} filenameBase={`${filenameBase}_cover`} />
             )}
+          </motion.div>
+        )}
+
+        {tailoredResume && critique && (
+          <motion.div
+            initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.4, delay: 0.1, ease: [0.4, 0, 0.2, 1] }}
+          >
+            <CritiqueBreakdown critique={critique} />
           </motion.div>
         )}
       </main>
