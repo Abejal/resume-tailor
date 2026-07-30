@@ -31,6 +31,17 @@ class LLMError extends Error {
 
 type Opts = { json: boolean; temperature?: number };
 
+// Return the first non-empty env var among the given names. Lets us accept
+// both the documented name and common alias spellings, so a small naming slip
+// in the dashboard (e.g. GOOGLE_AI_API_KEY2 vs _KEY_2) doesn't silently drop a key.
+function envAny(...names: string[]): string | undefined {
+  for (const n of names) {
+    const v = Deno.env.get(n);
+    if (v) return v;
+  }
+  return undefined;
+}
+
 function mapStatus(status: number): LLMError["code"] {
   if (status === 429) return "rate_limit";
   if (status >= 500) return "server";
@@ -130,9 +141,9 @@ function buildProviders(messages: Msg[], o: Opts): Provider[] {
 
   const geminiModel = Deno.env.get("GEMINI_MODEL") ?? "gemini-2.5-flash";
   const geminiKeys = [
-    Deno.env.get("GOOGLE_AI_API_KEY"),
-    Deno.env.get("GOOGLE_AI_API_KEY_2"),
-    Deno.env.get("GOOGLE_AI_API_KEY_3"),
+    envAny("GOOGLE_AI_API_KEY"),
+    envAny("GOOGLE_AI_API_KEY_2", "GOOGLE_AI_API_KEY2"),
+    envAny("GOOGLE_AI_API_KEY_3", "GOOGLE_AI_API_KEY3"),
   ].filter((k): k is string => !!k);
   geminiKeys.forEach((k, i) => {
     providers.push({
@@ -142,7 +153,7 @@ function buildProviders(messages: Msg[], o: Opts): Provider[] {
     });
   });
 
-  const orKey = Deno.env.get("OPENROUTER_API_KEY");
+  const orKey = envAny("OPENROUTER_API_KEY", "OpenRouter_API_KEY", "OPENROUTER_KEY");
   if (orKey) {
     const orModel = Deno.env.get("OPENROUTER_MODEL") ?? "google/gemini-2.0-flash-exp:free";
     providers.push({
@@ -198,8 +209,10 @@ export async function callLLM(
       return await p.fn();
     } catch (e) {
       lastErr = e;
-      if (e instanceof LLMError &&
-          (e.code === "rate_limit" || e.code === "server" || e.code === "auth" || e.code === "bad_request")) {
+      // With a multi-provider chain, ANY provider-level failure (incl. 404 "no
+      // free endpoint", timeouts, unexpected statuses) should roll to the next
+      // provider rather than fail the request. Only a non-provider bug throws.
+      if (e instanceof LLMError) {
         console.warn(`LLM ${p.name} ${e.code}: ${e.message.slice(0, 200)} -- trying next`);
         continue;
       }
