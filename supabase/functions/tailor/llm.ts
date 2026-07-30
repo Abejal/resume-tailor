@@ -206,7 +206,18 @@ export async function callLLM(
   let lastErr: unknown;
   for (const p of providers) {
     try {
-      return await p.fn();
+      // Give each provider one automatic retry on a TRANSIENT error (503 "model
+      // busy" / 429), with a short backoff — these clear on their own and would
+      // otherwise surface as a spurious "Generation failed".
+      try {
+        return await p.fn();
+      } catch (e) {
+        if (e instanceof LLMError && (e.code === "server" || e.code === "rate_limit")) {
+          await new Promise(r => setTimeout(r, 700));
+          return await p.fn();
+        }
+        throw e;
+      }
     } catch (e) {
       lastErr = e;
       // With a multi-provider chain, ANY provider-level failure (incl. 404 "no
