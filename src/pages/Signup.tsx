@@ -11,6 +11,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { getFingerprint } from "@/lib/fingerprint";
 import { clearAnonCredits } from "@/hooks/useCredits";
 import { BrandMark } from "@/components/BrandMark";
+import { GoogleSignInButton } from "@/components/GoogleSignInButton";
 
 const REF_KEY = "jobtailor_ref";
 
@@ -74,8 +75,15 @@ export default function Signup() {
           </div>
           <h1 className="font-display text-2xl font-semibold mb-1 text-center">Start tailoring in 10 seconds</h1>
           <p className="text-sm text-muted-foreground text-center mb-6 flex items-center justify-center gap-1.5">
-            <Sparkles className="h-3 w-3 text-accent" /> Free account · credits sync across devices
+            <Sparkles className="h-3 w-3 text-accent" /> Get 3 free tailors · no card needed
           </p>
+
+          <GoogleSignInButton next={next} label="Sign up with Google" />
+          <div className="flex items-center gap-3 my-5">
+            <div className="h-px flex-1 bg-border" />
+            <span className="text-xs text-muted-foreground">or</span>
+            <div className="h-px flex-1 bg-border" />
+          </div>
 
           <form onSubmit={submit} className="space-y-4">
             <div className="space-y-2">

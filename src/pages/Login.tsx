@@ -9,6 +9,7 @@ import { Loader2, Check } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { BrandMark } from "@/components/BrandMark";
+import { GoogleSignInButton } from "@/components/GoogleSignInButton";
 
 export default function Login() {
   const nav = useNavigate();
@@ -44,6 +45,13 @@ export default function Login() {
           </div>
           <h1 className="font-display text-2xl font-semibold mb-1 text-center">Sign in</h1>
           <p className="text-sm text-muted-foreground text-center mb-6">Continue tailoring your resumes</p>
+
+          <GoogleSignInButton next={next} />
+          <div className="flex items-center gap-3 my-5">
+            <div className="h-px flex-1 bg-border" />
+            <span className="text-xs text-muted-foreground">or</span>
+            <div className="h-px flex-1 bg-border" />
+          </div>
 
           <form onSubmit={submit} className="space-y-4">
             <div className="space-y-2">

@@ -2,7 +2,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { motion } from "framer-motion";
-import { Copy, Check, FileText, FileType2, LayoutTemplate, Loader2, Eye } from "lucide-react";
+import { Copy, Check, FileText, FileType2, Loader2, Eye } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 import type { TailoredResume, CoverLetter, Template } from "@/lib/resumeSchema";
@@ -132,35 +132,10 @@ function CoverPreview({ c }: { c: CoverLetter }) {
   );
 }
 
-function TemplateSwitch({ value, onChange }: { value: Template; onChange: (t: Template) => void }) {
-  const opts: { v: Template; label: string }[] = [
-    { v: "classic", label: "Classic" },
-    { v: "modern", label: "Modern" },
-  ];
-  return (
-    <div className="inline-flex items-center gap-0.5 rounded-full border border-border bg-muted/60 p-0.5">
-      {opts.map((o) => {
-        const active = value === o.v;
-        return (
-          <button
-            key={o.v}
-            onClick={() => onChange(o.v)}
-            className={cn(
-              "relative inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-medium transition-smooth",
-              active ? "bg-card text-foreground shadow-soft" : "text-muted-foreground hover:text-foreground",
-            )}
-          >
-            <LayoutTemplate className="h-3 w-3" /> {o.label}
-          </button>
-        );
-      })}
-    </div>
-  );
-}
-
 export function ResultCard(props: Props) {
   const [copied, setCopied] = useState(false);
-  const [template, setTemplate] = useState<Template>("classic");
+  // Single professional template for every resume — no user-facing choice.
+  const template: Template = "classic";
   const [downloading, setDownloading] = useState<"pdf" | "docx" | null>(null);
   const [previewOpen, setPreviewOpen] = useState(false);
 
@@ -211,7 +186,6 @@ export function ResultCard(props: Props) {
             </p>
           </div>
         </div>
-        <TemplateSwitch value={template} onChange={setTemplate} />
       </div>
 
       <div className="inline-flex items-center gap-1 rounded-full border border-border bg-muted/40 p-1 mb-4">

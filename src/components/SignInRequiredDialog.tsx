@@ -1,7 +1,8 @@
 import { useNavigate } from "react-router-dom";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Lock, CloudCog, History as HistoryIcon, Sparkles } from "lucide-react";
+import { Lock, Gauge, History as HistoryIcon, Sparkles } from "lucide-react";
+import { GoogleSignInButton } from "@/components/GoogleSignInButton";
 
 interface Props {
   open: boolean;
@@ -16,13 +17,14 @@ interface Props {
 
 const BENEFITS = [
   { Icon: Sparkles, title: "3 free tailors on us", body: "Instant, ATS-optimized — no credit card needed." },
-  { Icon: CloudCog, title: "Credits sync everywhere", body: "Phone, laptop, work browser — same balance." },
+  { Icon: Gauge, title: "Scored, critiqued & coached", body: "We rate your resume against the job and show exactly what to fix." },
   { Icon: HistoryIcon, title: "History saved", body: "Re-download any tailored resume anytime." },
 ];
 
 export function SignInRequiredDialog({ open, onOpenChange, intent, next: nextOverride, title, description }: Props) {
   const nav = useNavigate();
-  const next = encodeURIComponent(nextOverride ?? `/billing?intent=${intent}`);
+  const rawNext = nextOverride ?? `/billing?intent=${intent}`;
+  const next = encodeURIComponent(rawNext);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -53,7 +55,13 @@ export function SignInRequiredDialog({ open, onOpenChange, intent, next: nextOve
           ))}
         </ul>
 
-        <div className="mt-5 space-y-2">
+        <div className="mt-5 space-y-3">
+          <GoogleSignInButton next={rawNext} />
+          <div className="flex items-center gap-3">
+            <div className="h-px flex-1 bg-border" />
+            <span className="text-xs text-muted-foreground">or</span>
+            <div className="h-px flex-1 bg-border" />
+          </div>
           <Button
             size="lg"
             className="w-full bg-gradient-primary text-primary-foreground shadow-soft hover:shadow-elegant transition-smooth"
