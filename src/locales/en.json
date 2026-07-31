@@ -3,6 +3,8 @@
     "credits_left_one": "{{count}} credit left",
     "credits_left_other": "{{count}} credits left",
     "buy_credits": "Buy credits",
+    "get_free": "Sign up — 3 free",
+    "free_cta": "3 free on sign-up",
     "sign_in": "Sign in",
     "sign_out": "Sign out",
     "billing": "Billing",
@@ -10,12 +12,17 @@
   },
   "hero": {
     "tagline": "AI-powered · ATS-optimized",
+    "free_offer": "3 free tailors when you sign up — no card needed",
     "title_line1": "Land more interviews,",
     "title_line2": "tailor in seconds.",
-    "subtitle": "Paste your resume and a job description — get an ATS-optimized resume and a personalized cover letter, instantly.",
+    "subtitle": "Create a free account and get 3 resume tailors on us. Paste your resume and a job description — get an ATS-optimized resume and cover letter, instantly.",
     "feature_keywords": "Keyword-matched",
     "feature_fast": "Under 30 seconds",
     "feature_private": "Private & secure"
+  },
+  "signin": {
+    "title": "Sign up to start — it's free",
+    "subtitle": "Get 3 free resume tailors. No credit card. Takes 10 seconds."
   },
   "form": {
     "your_details": "Your details",

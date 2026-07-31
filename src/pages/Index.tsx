@@ -22,6 +22,7 @@ import { ResultCard } from "@/components/ResultCard";
 import { CritiqueBreakdown } from "@/components/CritiqueBreakdown";
 import { FileUploadButton } from "@/components/FileUploadButton";
 import { Paywall } from "@/components/Paywall";
+import { SignInRequiredDialog } from "@/components/SignInRequiredDialog";
 import { LocaleToggle } from "@/components/LocaleToggle";
 import { BrandMark } from "@/components/BrandMark";
 import { AnimatedCounter } from "@/components/AnimatedCounter";
@@ -108,6 +109,7 @@ const Index = () => {
   const [loadingResume, setLoadingResume] = useState(false);
   const [loadingCover, setLoadingCover] = useState(false);
   const [paywallOpen, setPaywallOpen] = useState(false);
+  const [signInOpen, setSignInOpen] = useState(false);
 
   const validate = () => {
     if (!resume.trim() || !jobDescription.trim()) {
@@ -119,6 +121,11 @@ const Index = () => {
 
   const generate = async (mode: "resume" | "cover_letter") => {
     if (!validate()) return;
+    if (!user) {
+      // Free credits require an account — prompt sign-up instead of generating.
+      setSignInOpen(true);
+      return;
+    }
     if (credits <= 0) {
       toast.error(t("errors.no_credits"));
       setPaywallOpen(true);
@@ -202,7 +209,17 @@ const Index = () => {
             <BrandMark size="md" />
           </Link>
           <div className="flex items-center gap-2">
-            <CreditPill credits={credits} />
+            {user ? (
+              <CreditPill credits={credits} />
+            ) : (
+              <button
+                onClick={() => setSignInOpen(true)}
+                className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium border bg-accent-soft border-accent/30 text-accent-foreground transition-smooth hover:shadow-soft"
+              >
+                <Sparkles className="h-3 w-3 text-accent" />
+                {t("header.free_cta")}
+              </button>
+            )}
             <div className="hidden sm:block"><LocaleToggle /></div>
             {user ? (
               <DropdownMenu>
@@ -231,8 +248,8 @@ const Index = () => {
             ) : (
               <>
                 <Link to="/login" className="hidden sm:block"><Button variant="ghost" size="sm"><UserIcon className="h-4 w-4 mr-1.5" /> {t("header.sign_in")}</Button></Link>
-                <Button size="sm" onClick={() => setPaywallOpen(true)} className="bg-gradient-primary text-primary-foreground shadow-soft hover:shadow-elegant transition-smooth">
-                  {t("header.buy_credits")}
+                <Button size="sm" onClick={() => setSignInOpen(true)} className="bg-gradient-primary text-primary-foreground shadow-soft hover:shadow-elegant transition-smooth">
+                  {t("header.get_free")}
                 </Button>
               </>
             )}
@@ -242,9 +259,9 @@ const Index = () => {
 
       <section className="container max-w-4xl pt-16 md:pt-20 pb-10 text-center relative">
         <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4 }}>
-          <Badge variant="secondary" className="mb-5 bg-card border border-border shadow-soft text-foreground font-medium">
-            <Sparkles className="h-3 w-3 mr-1.5 text-primary" />
-            {t("hero.tagline")}
+          <Badge variant="secondary" className="mb-5 bg-accent-soft border border-accent/30 shadow-soft text-accent-foreground font-medium">
+            <Sparkles className="h-3 w-3 mr-1.5 text-accent" />
+            {t("hero.free_offer")}
           </Badge>
         </motion.div>
         <HeroHeadline line1={t("hero.title_line1")} line2={t("hero.title_line2")} />
@@ -397,6 +414,14 @@ const Index = () => {
       </footer>
 
       <Paywall open={paywallOpen} onOpenChange={setPaywallOpen} />
+      <SignInRequiredDialog
+        open={signInOpen}
+        onOpenChange={setSignInOpen}
+        intent="topup"
+        next="/"
+        title={t("signin.title")}
+        description={t("signin.subtitle")}
+      />
     </div>
   );
 };

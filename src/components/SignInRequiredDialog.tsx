@@ -1,24 +1,28 @@
 import { useNavigate } from "react-router-dom";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Lock, CloudCog, History as HistoryIcon, Receipt } from "lucide-react";
+import { Lock, CloudCog, History as HistoryIcon, Sparkles } from "lucide-react";
 
 interface Props {
   open: boolean;
   onOpenChange: (v: boolean) => void;
   /** "monthly" | "annual" | "topup" — preserved across signup so the paywall reopens with the right plan */
   intent: string;
+  /** Where to land after auth. Defaults to the billing/purchase flow. */
+  next?: string;
+  title?: string;
+  description?: string;
 }
 
 const BENEFITS = [
+  { Icon: Sparkles, title: "3 free tailors on us", body: "Instant, ATS-optimized — no credit card needed." },
   { Icon: CloudCog, title: "Credits sync everywhere", body: "Phone, laptop, work browser — same balance." },
   { Icon: HistoryIcon, title: "History saved", body: "Re-download any tailored resume anytime." },
-  { Icon: Receipt, title: "Email receipts", body: "For your records and reimbursement." },
 ];
 
-export function SignInRequiredDialog({ open, onOpenChange, intent }: Props) {
+export function SignInRequiredDialog({ open, onOpenChange, intent, next: nextOverride, title, description }: Props) {
   const nav = useNavigate();
-  const next = encodeURIComponent(`/billing?intent=${intent}`);
+  const next = encodeURIComponent(nextOverride ?? `/billing?intent=${intent}`);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -28,10 +32,10 @@ export function SignInRequiredDialog({ open, onOpenChange, intent }: Props) {
             <Lock className="h-6 w-6 text-primary-foreground" />
           </div>
           <DialogTitle className="text-center font-display text-xl">
-            Save your purchase to an account
+            {title ?? "Save your purchase to an account"}
           </DialogTitle>
           <DialogDescription className="text-center">
-            Free account, 10 seconds, no credit card to sign up.
+            {description ?? "Free account, 10 seconds, no credit card to sign up."}
           </DialogDescription>
         </DialogHeader>
 

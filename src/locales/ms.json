@@ -3,6 +3,8 @@
     "credits_left_one": "{{count}} kredit baki",
     "credits_left_other": "{{count}} kredit baki",
     "buy_credits": "Beli kredit",
+    "get_free": "Daftar — 3 percuma",
+    "free_cta": "3 percuma bila daftar",
     "sign_in": "Log masuk",
     "sign_out": "Log keluar",
     "billing": "Bil",
@@ -10,12 +12,17 @@
   },
   "hero": {
     "tagline": "Dikuasakan AI · Dioptimumkan ATS",
+    "free_offer": "3 ubah suai percuma bila anda daftar — tanpa kad",
     "title_line1": "Dapatkan lebih banyak temuduga,",
     "title_line2": "ubah suai dalam beberapa saat.",
-    "subtitle": "Tampal resume anda dan deskripsi pekerjaan — terus dapatkan resume yang dioptimumkan ATS dan surat iringan peribadi.",
+    "subtitle": "Cipta akaun percuma dan dapatkan 3 ubah suai resume percuma. Tampal resume dan deskripsi pekerjaan — terus dapatkan resume dioptimumkan ATS dan surat iringan.",
     "feature_keywords": "Padanan kata kunci",
     "feature_fast": "Bawah 30 saat",
     "feature_private": "Peribadi & selamat"
+  },
+  "signin": {
+    "title": "Daftar untuk mula — percuma",
+    "subtitle": "Dapatkan 3 ubah suai resume percuma. Tanpa kad kredit. Ambil 10 saat."
   },
   "form": {
     "your_details": "Maklumat anda",

@@ -72,10 +72,14 @@ Deno.serve(async (req) => {
     }
 
     const authHeader = req.headers.get("authorization");
-    const fp = req.headers.get("x-anon-fp");
     const userId = await getUserIdFromJwt(authHeader);
 
-    if (userId) {
+    // Free credits require an account. Anonymous requests are not served — this
+    // is the real (server-side) enforcement behind the "sign up for 3 free"
+    // gate, and it removes the anonymous fingerprint-farming surface entirely.
+    if (!userId) return json(req, { error: "auth_required" }, 401);
+
+    {
       const userSb = userClient(authHeader);
       const { error } = await userSb.rpc("consume_credit_signed_in");
       if (error) {
@@ -85,22 +89,6 @@ Deno.serve(async (req) => {
         return json(req, { error: "credit_error" }, 500);
       }
       consumed = { kind: "user", userId };
-    } else if (fp && /^[a-f0-9]{32,128}$/i.test(fp)) {
-      // Hash only the left-most (original client) IP, not the whole forwarded
-      // chain — the chain is client-appendable and would let an attacker vary
-      // the hash to dodge the per-IP throttle.
-      const clientIp = (req.headers.get("x-forwarded-for") ?? "").split(",")[0].trim();
-      const ipHash = await sha256(clientIp);
-      const { error } = await sb.rpc("consume_credit_anon", { fp, ip_h: ipHash });
-      if (error) {
-        if (error.message?.includes("insufficient_credit"))
-          return json(req, { error: "insufficient_credit" }, 402);
-        console.error(JSON.stringify({ at: "consume_anon", error }));
-        return json(req, { error: "credit_error" }, 500);
-      }
-      consumed = { kind: "anon", fp };
-    } else {
-      return json(req, { error: "auth_required" }, 401);
     }
 
     const analysis = await callLLM(analyzePrompt(body), { json: true, temperature: 0.2 });
